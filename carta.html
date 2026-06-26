@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lily</title>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000}
+canvas{display:block;width:100%;height:100%;position:absolute;top:0;left:0}
+
+#grain{
+  position:fixed;inset:0;pointer-events:none;z-index:9;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity:0.032;mix-blend-mode:overlay;
+  animation:gs 0.12s steps(1) infinite;
+}
+@keyframes gs{
+  0%{transform:translate(0,0)}25%{transform:translate(-3px,2px)}
+  50%{transform:translate(2px,-3px)}75%{transform:translate(-2px,3px)}100%{transform:translate(3px,-1px)}
+}
+
+#lt,#lb{
+  position:fixed;left:0;right:0;height:15vh;background:#000;z-index:10;
+  transition:height 1.9s cubic-bezier(0.77,0,0.18,1);
+}
+#lt{top:0}#lb{bottom:0}
+.open #lt,.open #lb{height:0}
+
+/* ── Poem overlay ── */
+#poem{
+  position:fixed;
+  top:50%;right:0;
+  width:52%;
+  transform:translateY(-50%);
+  z-index:8;
+  pointer-events:none;
+  padding: 0 5% 0 2%;
+  display:flex;flex-direction:column;align-items:center;
+  gap:0;
+}
+.poem-line{
+  font-family:'Caveat',cursive;
+  font-weight:400;
+  color:rgba(232,110,148,0);
+  letter-spacing:0.04em;
+  line-height:1.55;
+  text-align:center;
+  width:100%;
+  transition:none;
+  white-space:pre;
+}
+.poem-line.l1{font-size:clamp(22px,2.8vw,42px)}
+.poem-line.l2{font-size:clamp(20px,2.5vw,38px)}
+.poem-line.l3{font-size:clamp(20px,2.5vw,38px)}
+.poem-line.author{
+  font-size:clamp(18px,2.1vw,32px);
+  margin-top:clamp(18px,3vh,42px);
+  color:rgba(232,110,148,0);
+}
+
+/* blinking cursor */
+.cursor{
+  display:inline-block;
+  width:2px;height:1em;
+  background:rgba(232,110,148,0.8);
+  vertical-align:middle;
+  margin-left:2px;
+  animation:blink 0.7s steps(1) infinite;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── Access button ── */
+#btn-acceso{
+  position:fixed;
+  bottom:7vh;
+  right:6%;
+  z-index:20;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 1.8s ease;
+}
+#btn-acceso.show{opacity:1;pointer-events:all}
+#btn-acceso button{
+  background:#000;
+  color:#fff;
+  border:1.5px solid rgba(255,255,255,0.85);
+  border-radius:10px;
+  padding:12px 38px;
+  font-family:-apple-system,'SF Pro Display','Helvetica Neue',sans-serif;
+  font-size:clamp(13px,1.1vw,17px);
+  font-weight:400;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  cursor:pointer;
+  outline:none;
+  box-shadow:0 0 18px rgba(255,255,255,0.08);
+  transition:box-shadow 0.3s ease, background 0.3s ease;
+}
+#btn-acceso button:hover{
+  box-shadow:0 0 28px rgba(255,255,255,0.18);
+  background:rgba(255,255,255,0.04);
+}
+#btn-acceso button:active{transform:scale(0.97)}
+
+/* ── Password modal ── */
+#modal-overlay{
+  position:fixed;inset:0;z-index:100;
+  background:rgba(0,0,0,0.75);
+  backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;
+  transition:opacity 0.4s ease;
+}
+#modal-overlay.show{opacity:1;pointer-events:all}
+
+#modal-box{
+  background:#0a0a0a;
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:16px;
+  padding:clamp(28px,4vh,48px) clamp(32px,4vw,56px);
+  display:flex;flex-direction:column;align-items:center;gap:20px;
+  min-width:280px;
+  box-shadow:0 0 60px rgba(0,0,0,0.8);
+  transform:translateY(16px);
+  transition:transform 0.4s ease;
+}
+#modal-overlay.show #modal-box{transform:translateY(0)}
+
+#modal-box h2{
+  font-family:-apple-system,'SF Pro Display','Helvetica Neue',sans-serif;
+  font-size:clamp(14px,1.2vw,18px);
+  font-weight:300;
+  letter-spacing:0.22em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.7);
+}
+
+#modal-dots{
+  display:flex;gap:16px;align-items:center;justify-content:center;
+  height:16px;
+}
+.dot{
+  width:12px;height:12px;border-radius:50%;
+  border:1.5px solid rgba(255,255,255,0.4);
+  background:transparent;
+  transition:background 0.15s ease, border-color 0.15s ease;
+}
+.dot.filled{background:rgba(255,255,255,0.85);border-color:rgba(255,255,255,0.85)}
+.dot.error{background:rgba(220,60,60,0.8);border-color:rgba(220,60,60,0.8)}
+
+/* numpad */
+#numpad{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
+  width:100%;max-width:240px;
+}
+.np-btn{
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:10px;
+  color:#fff;
+  font-family:-apple-system,'SF Pro Display','Helvetica Neue',sans-serif;
+  font-size:clamp(18px,1.8vw,26px);
+  font-weight:300;
+  padding:14px 0;
+  cursor:pointer;
+  transition:background 0.15s ease;
+  text-align:center;
+}
+.np-btn:hover{background:rgba(255,255,255,0.1)}
+.np-btn:active{background:rgba(255,255,255,0.18);transform:scale(0.95)}
+.np-btn.del{font-size:clamp(13px,1.1vw,16px);letter-spacing:0.05em;color:rgba(255,255,255,0.6)}
+
+#modal-error{
+  font-family:-apple-system,'SF Pro Display','Helvetica Neue',sans-serif;
+  font-size:12px;letter-spacing:0.1em;
+  color:rgba(220,60,60,0);
+  transition:color 0.3s ease;
+  height:16px;
+  text-align:center;
+}
+#modal-error.show{color:rgba(220,60,60,0.85)}
+
+#modal-close{
+  background:none;border:none;
+  color:rgba(255,255,255,0.28);
+  font-size:11px;letter-spacing:0.15em;text-transform:uppercase;
+  cursor:pointer;font-family:inherit;padding:4px 8px;
+  transition:color 0.2s ease;
+}
+#modal-close:hover{color:rgba(255,255,255,0.55)}
+
+/* ── Level 2 — Carta ── */
+#level2{
+  position:fixed;inset:0;z-index:200;
+  background:#0d0005;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;
+  transition:opacity 1.4s ease;
+  overflow:hidden;
+}
+#level2.show{opacity:1;pointer-events:all}
+
+/* rose canvas behind everything */
+#rose-canvas{
+  position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;
+}
+
+/* scrollable carta container */
+#carta-wrap{
+  position:relative;z-index:2;
+  width:100%;height:100%;
+  overflow-y:auto;
+  display:flex;justify-content:center;
+  padding:60px 20px 80px;
+  opacity:0;transform:translateY(22px);
+  transition:opacity 1.4s ease 0.6s, transform 1.4s ease 0.6s;
+  scrollbar-width:thin;scrollbar-color:rgba(200,80,120,0.3) transparent;
+}
+#carta-wrap::-webkit-scrollbar{width:5px}
+#carta-wrap::-webkit-scrollbar-track{background:transparent}
+#carta-wrap::-webkit-scrollbar-thumb{background:rgba(200,80,120,0.3);border-radius:3px}
+
+#level2.show #carta-wrap{opacity:1;transform:translateY(0)}
+
+#carta-inner{
+  max-width:680px;width:100%;
+  display:flex;flex-direction:column;align-items:center;
+  gap:0;
+}
+
+/* Title */
+#carta-titulo{
+  font-family:'Caveat',cursive;
+  font-size:clamp(36px,5.5vw,72px);
+  font-weight:500;
+  color:rgba(232,110,148,0.95);
+  letter-spacing:0.05em;
+  text-align:center;
+  margin-bottom:clamp(28px,4vh,52px);
+  text-shadow:0 0 40px rgba(200,60,100,0.35);
+}
+
+/* Decorative line under title */
+#carta-titulo::after{
+  content:'';display:block;
+  width:60px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(232,110,148,0.6),transparent);
+  margin:12px auto 0;
+}
+
+/* Body text */
+#carta-cuerpo{
+  display:flex;flex-direction:column;gap:clamp(14px,2.2vh,24px);
+  width:100%;
+}
+
+#carta-cuerpo p{
+  font-family:'Crimson Text','Georgia','Times New Roman',serif;
+  font-size:clamp(15px,1.35vw,20px);
+  line-height:1.85;
+  color:rgba(240,220,228,0.88);
+  text-align:justify;
+  hyphens:auto;
+}
+
+#carta-cuerpo p.italic{
+  font-style:italic;
+  color:rgba(232,160,185,0.92);
+  text-align:center;
+  font-size:clamp(16px,1.5vw,22px);
+  margin:8px 0;
+}
+
+#carta-cuerpo p.firma{
+  text-align:right;
+  font-family:'Caveat',cursive;
+  font-size:clamp(18px,1.8vw,26px);
+  color:rgba(232,110,148,0.85);
+  margin-top:clamp(16px,2.5vh,32px);
+  letter-spacing:0.08em;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="grain"></div>
+<div id="lt"></div>
+<div id="lb"></div>
+
+<div id="poem">
+  <div class="poem-line l1" id="pl1"></div>
+  <div class="poem-line l2" id="pl2"></div>
+  <div class="poem-line l3" id="pl3"></div>
+  <div class="poem-line author" id="pl4"></div>
+</div>
+
+<!-- Botón acceso -->
+<div id="btn-acceso">
+  <button id="acceso-btn">Acceso</button>
+</div>
+
+<!-- Modal contraseña -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h2>Contraseña</h2>
+    <div id="modal-dots">
+      <div class="dot" id="d0"></div>
+      <div class="dot" id="d1"></div>
+      <div class="dot" id="d2"></div>
+      <div class="dot" id="d3"></div>
+      <div class="dot" id="d4"></div>
+      <div class="dot" id="d5"></div>
+      <div class="dot" id="d6"></div>
+    </div>
+    <div id="numpad">
+      <button class="np-btn" data-n="1">1</button>
+      <button class="np-btn" data-n="2">2</button>
+      <button class="np-btn" data-n="3">3</button>
+      <button class="np-btn" data-n="4">4</button>
+      <button class="np-btn" data-n="5">5</button>
+      <button class="np-btn" data-n="6">6</button>
+      <button class="np-btn" data-n="7">7</button>
+      <button class="np-btn" data-n="8">8</button>
+      <button class="np-btn" data-n="9">9</button>
+      <button class="np-btn del" data-n="del">&#9003;</button>
+      <button class="np-btn" data-n="0">0</button>
+      <button class="np-btn" data-n="ok">&#10003;</button>
+    </div>
+    <div id="modal-error">Contraseña incorrecta</div>
+    <button id="modal-close">Cancelar</button>
+  </div>
+</div>
+
+<!-- Nivel 2 — Carta -->
+<div id="level2">
+  <canvas id="rose-canvas"></canvas>
+  <div id="carta-wrap">
+    <div id="carta-inner">
+      <h1 id="carta-titulo">Feliz Cumpleaños</h1>
+      <div id="carta-cuerpo">
+        <p>Feliz cumpleaños. Esta vez sí me acordé, pero esta vez ya no estoy a tu lado. Aun así, te preparé todo esto. Espero que sea de tu agrado. Lo hice pensando en ti. Tal vez no sea mucho, pero es una forma de expresar que aún me sigues importando.</p>
+        <p>Me es imposible olvidar a una persona con la que viví muchos momentos. Y aunque no todos fueron buenos, los volvería a vivir junto a ti. Siempre elegiría esa vida, porque para mí tú significaste mucho. No fuiste un simple personaje que apareció en mi vida; fuiste mucho más.</p>
+        <p>Te conozco desde el 2022, cuando todavía estaba en 6to. Nunca pensé que te seguiría escribiendo cartas cuatro años después. Ahora tú estás en 4to y yo ya no te puedo ver. Mi etapa terminó y la tuya todavía continúa. Espero que la disfrutes. Aprovecha cada momento, porque después serán recuerdos que algún día vas a querer volver a vivir. Te lo digo porque extraño todo eso: extraño el colegio, los recreos, los trabajos, las tareas. Incluso extraño a la auxiliar cara de mono.</p>
+        <p>En fin, extraño salir al recreo, encontrarme contigo y abrazarte. Es lo que más extraño. Daría lo que fuera por estar un año más en el colegio. Hubiera vivido más, hubiera hecho más estupideces. Pero lo vivido contigo no lo cambiaría por nada. No hay palabras que expresen lo que siento por ti. El amor se queda corto con lo que siento. Eres muy importante para mí y para las personas que te rodean.</p>
+        <p>Gracias por todos los momentos que vivimos. Aún recuerdo la vez que casi me atropellan por cruzar; siempre que paso por ahí viene ese recuerdo. La vez que salimos al pasacalle y estuvimos de la mano. La vez que me quedé contigo en las olimpiadas. La vez que me llamaste porque habías peleado con tu mamá y salí corriendo a buscarte para que pudieras desahogarte. La vez que fue nuestro primer beso. La vez que me mandaste un beso desde el balcón y no supe cómo reaccionar. Y entre muchos recuerdos más, todos esos los tengo marcados en la memoria.</p>
+        <p>Sabes que te amo. Por eso me quedé, porque vales la pena. A veces no sabía de lo que hablabas, pero me gustaba escucharte. Y una de las cosas de las que más me arrepiento es de no haberte estudiado lo suficiente. Debí preguntarte más, debí escucharte más, debí aprender más de tu locura. No pude hacer muchas cosas porque estuve cegado, y ahora me doy cuenta de todo lo que podía cambiar. Ya es tarde.</p>
+        <p>Y hablando de eso, la muerte de Gaspi me hizo darme cuenta de todo eso. Debemos valorar más la vida. No dejes para mañana las cosas que puedes hacer hoy, porque el mañana es impredecible. No sabemos qué puede pasar y, cuando nos damos cuenta, puede ser demasiado tarde.</p>
+        <p>Bueno, tengo muchas más cosas por decir, pero ahora solo me queda escribir. Recuerda que para mí eres importante. Eres una persona increíble y doy gracias por coincidir en esta vida contigo. Siempre te voy a llevar en mi recuerdo. Muchas veces fuiste luz en mi oscuridad y te agradezco por compartir todo lo vivido conmigo. Si pudiera, volvería a vivir cada uno de esos momentos.</p>
+        <p class="italic">A veces le hablo a la luna de ti.</p>
+        <p>Y bueno, espero que la pases muy bien en tu cumpleaños. Te quiero mucho. Crea momentos que valgan la pena.</p>
+        <p>Gracias por todo.</p>
+        <p class="firma">Att: IJQC</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Canvas setup ───────────────────────────────────────────
+const cv=document.getElementById('c');
+const ct=cv.getContext('2d');
+let W,H,DPR;
+function resize(){
+  DPR=window.devicePixelRatio||1;
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=W*DPR;cv.height=H*DPR;
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ct.setTransform(DPR,0,0,DPR,0,0);
+}
+resize();window.addEventListener('resize',resize);
+
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const remap=(v,a,b,c,d)=>c+(d-c)*clamp((v-a)/(b-a),0,1);
+const easeOut3=t=>1-Math.pow(1-t,3);
+const easeOut5=t=>1-Math.pow(1-t,5);
+const easeInOut=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+const PI=Math.PI;
+
+// ── PETAL ─────────────────────────────────────────────────
+function petal(len,w,progress,isDark,alpha){
+  const e=easeOut5(clamp(progress,0,1));
+  if(e<=0)return;
+  const L=len*e,W2=w*e;
+  ct.save();ct.globalAlpha=(alpha||1)*e;
+  ct.beginPath();
+  ct.moveTo(0,0);
+  ct.bezierCurveTo(-W2*0.55,-L*0.22,-W2*1.08,-L*0.55,-W2*0.18,-L*0.91);
+  ct.bezierCurveTo(-W2*0.06,-L,W2*0.06,-L,W2*0.18,-L*0.91);
+  ct.bezierCurveTo(W2*1.08,-L*0.55,W2*0.55,-L*0.22,0,0);
+  ct.closePath();
+  const g=ct.createLinearGradient(W2*0.3,0,-W2*0.2,-L);
+  if(isDark){
+    g.addColorStop(0,'rgba(155,38,75,1)');g.addColorStop(0.3,'rgba(108,15,48,1)');
+    g.addColorStop(0.65,'rgba(72,6,30,1)');g.addColorStop(1,'rgba(38,1,15,1)');
+  }else{
+    g.addColorStop(0,'rgba(228,82,118,1)');g.addColorStop(0.22,'rgba(198,55,92,1)');
+    g.addColorStop(0.6,'rgba(155,28,65,1)');g.addColorStop(1,'rgba(75,4,30,1)');
+  }
+  ct.fillStyle=g;ct.fill();
+  ct.save();ct.clip();
+  const rg=ct.createLinearGradient(-W2*1.1,-L*0.6,0,-L*0.5);
+  rg.addColorStop(0,'rgba(255,165,188,0.38)');rg.addColorStop(0.5,'rgba(255,140,165,0.09)');rg.addColorStop(1,'rgba(0,0,0,0)');
+  ct.fillStyle=rg;ct.fillRect(-W2*1.15,-L,W2*1.15,L);ct.restore();
+  ct.beginPath();ct.moveTo(0,0);ct.bezierCurveTo(1.2,-L*0.28,0.5,-L*0.62,0,-L*0.91);
+  ct.strokeStyle='rgba(255,195,212,0.32)';ct.lineWidth=0.85;ct.stroke();
+  [0.26,0.45,0.62].forEach((frac,vi)=>{
+    [[-1],[1]].forEach(([sx2])=>{
+      ct.beginPath();ct.moveTo(0,-L*frac);
+      ct.quadraticCurveTo(sx2*W2*(0.18+vi*0.16),-L*frac,sx2*W2*(0.45+vi*0.18),-L*(frac+0.13));
+      ct.strokeStyle='rgba(255,195,212,0.13)';ct.lineWidth=0.5;ct.stroke();
+    });
+  });
+  ct.globalAlpha*=0.58;
+  [{x:-W2*0.38,y:-L*0.17,r:2.1},{x:W2*0.32,y:-L*0.23,r:1.8},
+   {x:-W2*0.52,y:-L*0.29,r:1.5},{x:W2*0.48,y:-L*0.15,r:1.7},
+   {x:-W2*0.2,y:-L*0.34,r:1.3},{x:W2*0.18,y:-L*0.37,r:1.4}
+  ].forEach(s=>{ct.beginPath();ct.arc(s.x,s.y,s.r,0,PI*2);ct.fillStyle='rgba(48,1,18,0.95)';ct.fill();});
+  ct.globalAlpha=1;ct.restore();
+}
+
+function stamens(radius,filLen,headR,count,alpha,rotOff){
+  if(alpha<=0)return;
+  ct.save();ct.globalAlpha=alpha;
+  for(let i=0;i<count;i++){
+    const ang=(i/count)*PI*2+(rotOff||0);
+    const x0=Math.cos(ang)*radius*0.55,y0=Math.sin(ang)*radius*0.55;
+    const x1=Math.cos(ang)*(radius+filLen),y1=Math.sin(ang)*(radius+filLen);
+    const fg=ct.createLinearGradient(x0,y0,x1,y1);
+    fg.addColorStop(0,'rgba(165,128,10,0.7)');fg.addColorStop(1,'rgba(215,178,28,0.95)');
+    ct.strokeStyle=fg;ct.lineWidth=1.05;ct.lineCap='round';
+    ct.beginPath();ct.moveTo(x0,y0);ct.quadraticCurveTo((x0+x1)/2*1.04,(y0+y1)/2*1.04,x1,y1);ct.stroke();
+    ct.save();ct.translate(x1,y1);ct.rotate(ang+PI/2);
+    ct.beginPath();ct.ellipse(0,0,headR*1.55,headR*0.72,0,0,PI*2);
+    const ag=ct.createRadialGradient(headR*0.3,0,0,0,0,headR*2);
+    ag.addColorStop(0,'rgba(248,208,48,1)');ag.addColorStop(0.5,'rgba(205,162,20,1)');ag.addColorStop(1,'rgba(148,108,6,0.85)');
+    ct.fillStyle=ag;ct.fill();ct.restore();
+  }
+  ct.globalAlpha=1;ct.restore();
+}
+
+function pistil(alpha){
+  if(alpha<=0)return;
+  ct.save();ct.globalAlpha=alpha;
+  ct.beginPath();ct.arc(0,0,4.5,0,PI*2);
+  const pg=ct.createRadialGradient(-1,-1,0,0,0,5);
+  pg.addColorStop(0,'rgba(200,240,80,1)');pg.addColorStop(0.5,'rgba(140,190,30,1)');pg.addColorStop(1,'rgba(80,130,10,0.9)');
+  ct.fillStyle=pg;ct.fill();ct.globalAlpha=1;ct.restore();
+}
+
+function lily(ox,oy,sc,petalPs,stamenA,sway,dof){
+  ct.save();ct.translate(ox,oy);ct.rotate(sway);ct.scale(sc,sc);
+  const LEN=H*0.19/sc,WID=LEN*0.37;
+  const baseAngs=[0,PI/3,2*PI/3,PI,4*PI/3,5*PI/3];
+  const jitter=[0.04,-0.03,0.05,-0.02,0.03,-0.04];
+  const dark=[false,true,false,true,false,true];
+  baseAngs.forEach((ang,i)=>{
+    const p=clamp(petalPs[i],0,1);if(p<=0)return;
+    ct.save();ct.rotate(ang+jitter[i]);petal(LEN,WID,p,dark[i],dof?0.70:1);ct.restore();
+  });
+  const avgP=petalPs.reduce((a,b)=>a+b,0)/6;
+  if(avgP>0.15){
+    const ga=clamp((avgP-0.15)/0.85,0,1);
+    const cg=ct.createRadialGradient(0,0,0,0,0,LEN*0.20);
+    cg.addColorStop(0,`rgba(255,230,200,${ga*0.30})`);cg.addColorStop(0.5,`rgba(210,80,110,${ga*0.14})`);cg.addColorStop(1,'rgba(0,0,0,0)');
+    ct.fillStyle=cg;ct.beginPath();ct.arc(0,0,LEN*0.20,0,PI*2);ct.fill();
+  }
+  stamens(LEN*0.11,LEN*0.18,LEN*0.028,12,stamenA*(dof?0.7:1),0.26);
+  pistil(stamenA*(dof?0.6:1));
+  ct.restore();
+}
+
+function stem(x1,y1,x2,y2,cpx,cpy,w,progress){
+  const p=easeOut3(clamp(progress,0,1));if(p<=0)return;
+  const tt=p;
+  const bx=(1-tt)*(1-tt)*x1+2*(1-tt)*tt*cpx+tt*tt*x2;
+  const by=(1-tt)*(1-tt)*y1+2*(1-tt)*tt*cpy+tt*tt*y2;
+  const g=ct.createLinearGradient(x1,y1,x2,y2);
+  g.addColorStop(0,'#16280e');g.addColorStop(0.5,'#2c4e1a');g.addColorStop(1,'#162810');
+  ct.strokeStyle=g;ct.lineWidth=w;ct.lineCap='round';
+  ct.beginPath();ct.moveTo(x1,y1);ct.quadraticCurveTo(cpx,cpy,bx,by);ct.stroke();
+}
+
+function leaf(ox,oy,angle,len,wide,alpha){
+  if(alpha<=0)return;
+  ct.save();ct.translate(ox,oy);ct.rotate(angle);ct.globalAlpha=alpha;
+  ct.beginPath();
+  ct.moveTo(0,0);ct.bezierCurveTo(-wide*0.5,-len*0.3,-wide*0.22,-len*0.78,0,-len);
+  ct.bezierCurveTo(wide*0.22,-len*0.78,wide*0.5,-len*0.3,0,0);
+  const lg=ct.createLinearGradient(-wide*0.5,0,wide*0.5,-len);
+  lg.addColorStop(0,'#162810');lg.addColorStop(0.5,'#2e5618');lg.addColorStop(1,'#182e0e');
+  ct.fillStyle=lg;ct.fill();
+  ct.beginPath();ct.moveTo(0,0);ct.lineTo(0,-len*0.9);
+  ct.strokeStyle='rgba(80,155,45,0.22)';ct.lineWidth=0.7;ct.stroke();
+  ct.globalAlpha=1;ct.restore();
+}
+
+function bud(ox,oy,progress,sway){
+  const p=easeOut3(clamp(progress,0,1));if(p<=0)return;
+  ct.save();ct.translate(ox,oy);ct.rotate(sway*0.4);ct.globalAlpha=p;
+  const bh=H*0.11*p,bw=W*0.018*p;
+  ct.beginPath();
+  ct.moveTo(0,0);
+  ct.bezierCurveTo(-bw,-bh*0.28,-bw*1.25,-bh*0.62,-bw*0.45,-bh*0.90);
+  ct.bezierCurveTo(-bw*0.15,-bh,bw*0.15,-bh,bw*0.45,-bh*0.90);
+  ct.bezierCurveTo(bw*1.25,-bh*0.62,bw,-bh*0.28,0,0);
+  const bg=ct.createLinearGradient(-bw,-bh,bw,0);
+  bg.addColorStop(0,'rgba(40,65,18,1)');bg.addColorStop(0.45,'rgba(188,52,85,0.92)');bg.addColorStop(1,'rgba(28,48,14,1)');
+  ct.fillStyle=bg;ct.fill();
+  for(let i=-1;i<=1;i++){ct.beginPath();ct.moveTo(0,0);ct.lineTo(i*bw*0.65,-bh*0.84);ct.strokeStyle='rgba(35,58,14,0.68)';ct.lineWidth=0.9;ct.stroke();}
+  leaf(0,0,-0.52,H*0.052*p,W*0.016*p,0.88);
+  leaf(0,0, 0.52,H*0.049*p,W*0.014*p,0.82);
+  ct.globalAlpha=1;ct.restore();
+}
+
+const particles=[];
+function spawnPollen(x,y){
+  const a=Math.random()*PI*2;
+  particles.push({x,y,vx:Math.cos(a)*(Math.random()*0.45+0.12),vy:Math.sin(a)*0.25-Math.random()*0.48-0.08,r:Math.random()*2.5+0.7,life:1,decay:Math.random()*0.0032+0.0014,hue:Math.random()*30+15,sat:Math.random()*22+62});
+}
+function tickParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy-=0.003;p.life-=p.decay;
+    if(p.life<=0)particles.splice(i,1);
+  }
+}
+function drawParticles(){
+  particles.forEach(p=>{
+    ct.save();ct.globalAlpha=p.life*p.life*0.72;
+    const g=ct.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*2.8);
+    g.addColorStop(0,`hsla(${p.hue},${p.sat}%,83%,1)`);
+    g.addColorStop(0.5,`hsla(${p.hue},${p.sat}%,68%,0.5)`);
+    g.addColorStop(1,`hsla(${p.hue},${p.sat}%,55%,0)`);
+    ct.fillStyle=g;ct.beginPath();ct.arc(p.x,p.y,p.r*2.8,0,PI*2);ct.fill();ct.restore();
+  });
+}
+
+function lightRays(t,alpha,cx2,cy2){
+  if(alpha<=0)return;
+  ct.save();
+  for(let i=0;i<10;i++){
+    const ang=(i/10)*PI*2+t*0.038;
+    const rl=Math.max(W,H)*0.62;
+    ct.save();ct.translate(cx2,cy2);ct.rotate(ang);
+    ct.beginPath();ct.moveTo(0,0);
+    ct.lineTo(Math.cos(0.055)*rl,Math.sin(0.055)*rl);
+    ct.lineTo(Math.cos(-0.055)*rl,Math.sin(-0.055)*rl);
+    ct.closePath();
+    const rg=ct.createLinearGradient(0,0,rl,0);
+    const a=alpha*(0.038+0.022*Math.sin(t*0.75+i*1.3));
+    rg.addColorStop(0,`rgba(215,88,125,${a})`);rg.addColorStop(0.55,`rgba(170,45,85,${a*0.38})`);rg.addColorStop(1,'rgba(0,0,0,0)');
+    ct.fillStyle=rg;ct.fill();ct.restore();
+  }
+  ct.restore();
+}
+
+function background(t,ox){
+  ct.fillStyle='#000';ct.fillRect(0,0,W,H);
+  const fade=easeOut3(clamp(t/1.3,0,1));
+  const bx=W*0.5+ox,by=H*0.62;
+  const b1=ct.createRadialGradient(bx,by,0,bx,by,Math.min(W,H)*0.58);
+  b1.addColorStop(0,`rgba(52,4,24,${fade*0.78})`);
+  b1.addColorStop(0.45,`rgba(22,2,10,${fade*0.5})`);
+  b1.addColorStop(1,'rgba(0,0,0,0)');
+  ct.fillStyle=b1;ct.fillRect(0,0,W,H);
+}
+
+function overlays(t){
+  const va=clamp(t/2.8,0,1)*0.65;
+  const vg=ct.createRadialGradient(W/2,H*0.5,H*0.10,W/2,H*0.5,H*0.72);
+  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,`rgba(0,0,0,${va})`);
+  ct.fillStyle=vg;ct.fillRect(0,0,W,H);
+  const tg=ct.createLinearGradient(0,0,0,H*0.2);
+  tg.addColorStop(0,`rgba(0,0,0,${va*1.1})`);tg.addColorStop(1,'rgba(0,0,0,0)');
+  ct.fillStyle=tg;ct.fillRect(0,0,W,H*0.2);
+  const bg2=ct.createLinearGradient(0,H*0.82,0,H);
+  bg2.addColorStop(0,'rgba(0,0,0,0)');bg2.addColorStop(1,`rgba(0,0,0,${va})`);
+  ct.fillStyle=bg2;ct.fillRect(0,H*0.82,W,H*0.18);
+  const sg=ct.createLinearGradient(0,0,W,0);
+  sg.addColorStop(0,`rgba(0,3,12,${va*0.28})`);sg.addColorStop(0.5,'rgba(0,0,0,0)');sg.addColorStop(1,`rgba(0,3,12,${va*0.28})`);
+  ct.fillStyle=sg;ct.fillRect(0,0,W,H);
+}
+
+const FLOWERS=[
+  {fx:0.50,fy:0.42,sc:1.00,sw:0.013,dof:false,ps:0.90,sp:0.13,sd:2.10},
+  {fx:0.33,fy:0.50,sc:0.80,sw:0.010,dof:false,ps:1.10,sp:0.12,sd:2.35},
+  {fx:0.67,fy:0.50,sc:0.78,sw:0.010,dof:false,ps:1.15,sp:0.12,sd:2.40},
+  {fx:0.26,fy:0.38,sc:0.60,sw:0.008,dof:true, ps:1.30,sp:0.11,sd:2.60},
+  {fx:0.73,fy:0.36,sc:0.58,sw:0.008,dof:true, ps:1.35,sp:0.11,sd:2.65},
+  {fx:0.50,fy:0.28,sc:0.52,sw:0.007,dof:true, ps:1.45,sp:0.10,sd:2.80},
+];
+const BUDS=[
+  {fx:0.36,fy:0.22,sw:0.006,start:1.1},
+  {fx:0.63,fy:0.20,sw:0.006,start:1.2},
+];
+
+const SLIDE_START=4.0;
+const SLIDE_END=5.6;
+function getOffset(t){
+  const p=clamp((t-SLIDE_START)/(SLIDE_END-SLIDE_START),0,1);
+  return -W*0.28*easeInOut(p);
+}
+
+// ── POEM TYPEWRITER ───────────────────────────────────────
+const LINES=[
+  {id:'pl1', text:'Te quiero así como eres.'},
+  {id:'pl2', text:'Con todo lo bueno que no ves,'},
+  {id:'pl3', text:'con todo lo malo que dices tener.'},
+  {id:'pl4', text:'- Mario Benedetti -'},
+];
+// Each line starts typing after slide ends + stagger
+// slide ends ~5.6s, so poem starts at 6.2s
+const POEM_START=6.2;
+const CHARS_PER_SEC=22; // typing speed
+let poemState={line:0,char:0,done:false};
+let lastPoemTime=null;
+
+function updatePoem(t){
+  if(poemState.done) return;
+  if(t < POEM_START) return;
+
+  const li=poemState.line;
+  if(li>=LINES.length){poemState.done=true;return;}
+
+  const lineData=LINES[li];
+  const el=document.getElementById(lineData.id);
+
+  // fade in the line color when we start typing it
+  el.style.color='rgba(232,110,148,0.92)';
+
+  const elapsed=t-POEM_START;
+  // total chars typed so far across all lines
+  // stagger: each line starts after previous finishes + 0.4s pause
+  let lineStart=0;
+  for(let i=0;i<li;i++){
+    lineStart+=LINES[i].text.length/CHARS_PER_SEC + 0.4;
+  }
+  const lineElapsed=elapsed-lineStart;
+  if(lineElapsed<0) return;
+
+  const charsToShow=Math.floor(lineElapsed*CHARS_PER_SEC);
+  const fullText=lineData.text;
+
+  if(charsToShow>=fullText.length){
+    // line done — remove cursor from this line, move to next
+    el.innerHTML=fullText;
+    poemState.line++;
+    poemState.char=0;
+  } else {
+    // show partial + blinking cursor
+    el.innerHTML=fullText.slice(0,charsToShow)+'<span class="cursor"></span>';
+  }
+}
+
+// ── MAIN LOOP ─────────────────────────────────────────────
+let startTime=null;
+function frame(ts){
+  if(!startTime)startTime=ts;
+  const t=(ts-startTime)/1000;
+
+  const ox=getOffset(t);
+  background(t,ox);
+
+  const mainFX=W*0.5+ox,mainFY=H*0.42;
+  lightRays(t,clamp((t-1.8)/2.2,0,1)*0.68,mainFX,mainFY);
+
+  const swayT=Math.max(0,t-3.8);
+  const sway=swayT>0?(Math.sin(swayT*0.52)*0.014+Math.sin(swayT*0.29)*0.007)*(1-Math.exp(-swayT*0.4)):0;
+
+  const GX=W*0.50+ox,GY=H*0.94;
+
+  FLOWERS.forEach((f,i)=>{
+    const fx=W*f.fx+ox,fy=H*f.fy;
+    const stemP=remap(t,0.30+i*0.06,1.55+i*0.06,0,1);
+    const cpx=GX+(fx-GX)*0.45,cpy=GY+(fy-GY)*0.38;
+    stem(GX,GY,fx,fy,cpx,cpy,W*f.sw,stemP);
+  });
+  BUDS.forEach(b=>{
+    const bx=W*b.fx+ox,by=H*b.fy;
+    const p=remap(t,b.start,b.start+1.2,0,1);
+    stem(GX,GY,bx,by,GX+(bx-GX)*0.4,GY+(by-GY)*0.35,W*b.sw,p);
+  });
+
+  const lA=easeOut3(remap(t,1.3,2.3,0,1));
+  leaf(W*0.50+ox,H*0.75,-0.60,H*0.072,W*0.032,lA*easeOut3(remap(t,0.36,1.61,0,1)));
+  leaf(W*0.50+ox,H*0.75, 0.70,H*0.068,W*0.028,lA*easeOut3(remap(t,0.36,1.61,0,1)));
+  leaf(W*0.40+ox,H*0.68,-0.75,H*0.062,W*0.026,lA*easeOut3(remap(t,0.40,1.64,0,1)));
+  leaf(W*0.40+ox,H*0.68, 0.55,H*0.058,W*0.024,lA*easeOut3(remap(t,0.40,1.64,0,1)));
+  leaf(W*0.60+ox,H*0.67, 0.72,H*0.060,W*0.025,lA*easeOut3(remap(t,0.42,1.66,0,1)));
+  leaf(W*0.60+ox,H*0.67,-0.50,H*0.055,W*0.023,lA*easeOut3(remap(t,0.42,1.66,0,1)));
+  leaf(W*0.35+ox,H*0.56,-0.80,H*0.055,W*0.022,lA*easeOut3(remap(t,0.44,1.68,0,1)));
+  leaf(W*0.65+ox,H*0.54, 0.80,H*0.052,W*0.021,lA*easeOut3(remap(t,0.46,1.70,0,1)));
+  leaf(W*0.50+ox,H*0.60, 0.30,H*0.058,W*0.024,lA*easeOut3(remap(t,0.38,1.62,0,1)));
+
+  [5,3,4,1,2,0].forEach(i=>{
+    const f=FLOWERS[i];
+    const fx=W*f.fx+ox,fy=H*f.fy;
+    const ps=Array.from({length:6},(_,k)=>remap(t,f.ps+k*f.sp,f.ps+k*f.sp+0.72,0,1));
+    const sa=easeOut3(remap(t,f.sd,f.sd+0.75,0,1));
+    const ds=sway*(f.dof?0.6:1);
+    lily(fx,fy,f.sc,ps,sa,ds,f.dof);
+    if(!f.dof&&t>2.8&&t<9&&Math.random()<0.18)
+      spawnPollen(fx+(Math.random()-0.5)*W*0.06,fy+(Math.random()-0.5)*H*0.05);
+  });
+
+  BUDS.forEach(b=>{
+    bud(W*b.fx+ox,H*b.fy,remap(t,b.start,b.start+1.4,0,1),sway*0.5);
+  });
+
+  tickParticles();drawParticles();
+  overlays(t);
+
+  // poem
+  updatePoem(t);
+
+  requestAnimationFrame(frame);
+}
+
+setTimeout(()=>{document.body.classList.add('open')},250);
+requestAnimationFrame(frame);
+
+// ── BUTTON: show after poem finishes (~t=14s) ─────────────
+// poem ends roughly at POEM_START + sum of all line times
+// = 6.2 + (24/22+0.4)+(30/22+0.4)+(34/22+0.4)+(19/22+0.4) ≈ 6.2+8.3 = ~14.5s
+// We'll show it once poemState.done is true
+function checkShowButton(){
+  if(poemState.done){
+    document.getElementById('btn-acceso').classList.add('show');
+  } else {
+    setTimeout(checkShowButton,400);
+  }
+}
+setTimeout(checkShowButton, 8000);
+
+// ── PASSWORD MODAL LOGIC ───────────────────────────────────
+const PASSWORD='2526714';
+let input='';
+
+function updateDots(){
+  for(let i=0;i<7;i++){
+    const d=document.getElementById('d'+i);
+    d.classList.remove('filled','error');
+    if(i<input.length) d.classList.add('filled');
+  }
+}
+
+function shakeError(){
+  const dots=document.getElementById('modal-dots');
+  const err=document.getElementById('modal-error');
+  // mark dots red
+  for(let i=0;i<7;i++) document.getElementById('d'+i).classList.add('error');
+  err.classList.add('show');
+  // shake animation
+  dots.style.transition='transform 0.05s';
+  let s=0;
+  const shakes=[-8,8,-6,6,-4,4,0];
+  function step(){
+    if(s>=shakes.length){dots.style.transform='';return;}
+    dots.style.transform=`translateX(${shakes[s]}px)`;
+    s++;setTimeout(step,55);
+  }
+  step();
+  // reset after 1.4s
+  setTimeout(()=>{
+    input='';updateDots();
+    err.classList.remove('show');
+    for(let i=0;i<7;i++) document.getElementById('d'+i).classList.remove('error');
+  },1400);
+}
+
+function tryPassword(){
+  if(input===PASSWORD){
+    // correct — close modal, open level 2
+    document.getElementById('modal-overlay').classList.remove('show');
+    setTimeout(()=>{
+      document.getElementById('level2').classList.add('show');
+    },400);
+  } else {
+    shakeError();
+  }
+}
+
+document.querySelectorAll('.np-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const n=btn.dataset.n;
+    if(n==='del'){
+      input=input.slice(0,-1);
+      document.getElementById('modal-error').classList.remove('show');
+      updateDots();
+    } else if(n==='ok'){
+      if(input.length>0) tryPassword();
+    } else {
+      if(input.length<7){
+        input+=n;
+        updateDots();
+        // auto-check when 7 digits entered
+        if(input.length===7) setTimeout(tryPassword,200);
+      }
+    }
+  });
+});
+
+document.getElementById('acceso-btn').addEventListener('click',()=>{
+  input='';updateDots();
+  document.getElementById('modal-error').classList.remove('show');
+  document.getElementById('modal-overlay').classList.add('show');
+});
+
+document.getElementById('modal-close').addEventListener('click',()=>{
+  document.getElementById('modal-overlay').classList.remove('show');
+});
+
+// close modal clicking outside
+document.getElementById('modal-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('modal-overlay'))
+    document.getElementById('modal-overlay').classList.remove('show');
+});
+
+// ── ROSE CORNER CANVAS ────────────────────────────────────
+function initRoseCanvas(){
+  const rc=document.getElementById('rose-canvas');
+  const rct=rc.getContext('2d');
+  let RW,RH;
+  function rsz(){
+    RW=window.innerWidth;RH=window.innerHeight;
+    rc.width=RW;rc.height=RH;
+    drawRoses();
+  }
+  window.addEventListener('resize',rsz);
+
+  const PI=Math.PI;
+
+  // Draw one small rose petal cluster at cx,cy with scale sc and rotation rot
+  function rosePetal(rct,cx,cy,sc,rot){
+    rct.save();rct.translate(cx,cy);rct.rotate(rot);rct.scale(sc,sc);
+    // 5 petals
+    for(let i=0;i<5;i++){
+      const a=(i/5)*PI*2;
+      rct.save();rct.rotate(a);
+      rct.beginPath();
+      rct.moveTo(0,0);
+      rct.bezierCurveTo(-10,-8,-14,-22,-2,-30);
+      rct.bezierCurveTo(0,-32,2,-32,2,-30);
+      rct.bezierCurveTo(14,-22,10,-8,0,0);
+      const g=rct.createLinearGradient(0,0,0,-30);
+      g.addColorStop(0,'rgba(190,45,80,0.85)');
+      g.addColorStop(0.4,'rgba(160,30,65,0.82)');
+      g.addColorStop(1,'rgba(100,10,40,0.75)');
+      rct.fillStyle=g;rct.fill();
+      // petal edge
+      rct.strokeStyle='rgba(220,80,110,0.25)';rct.lineWidth=0.6;rct.stroke();
+      rct.restore();
+    }
+    // center
+    rct.beginPath();rct.arc(0,0,5,0,PI*2);
+    const cg=rct.createRadialGradient(-1,-1,0,0,0,5);
+    cg.addColorStop(0,'rgba(240,180,60,0.9)');cg.addColorStop(1,'rgba(180,100,20,0.7)');
+    rct.fillStyle=cg;rct.fill();
+    rct.restore();
+  }
+
+  // Draw a rose bud
+  function roseBud(rct,cx,cy,sc,rot){
+    rct.save();rct.translate(cx,cy);rct.rotate(rot);rct.scale(sc,sc);
+    // stem
+    rct.beginPath();rct.moveTo(0,0);rct.lineTo(0,28);
+    rct.strokeStyle='rgba(35,80,20,0.7)';rct.lineWidth=2;rct.lineCap='round';rct.stroke();
+    // small leaf
+    rct.beginPath();rct.moveTo(0,16);
+    rct.bezierCurveTo(-10,8,-18,12,-14,20);
+    rct.bezierCurveTo(-8,16,-2,18,0,16);
+    rct.fillStyle='rgba(30,70,15,0.65)';rct.fill();
+    // bud petals (3 outer, tight)
+    for(let i=0;i<3;i++){
+      const a=(i/3)*PI*2+0.3;
+      rct.save();rct.rotate(a);
+      rct.beginPath();
+      rct.moveTo(0,0);
+      rct.bezierCurveTo(-7,-5,-9,-16,-1,-20);
+      rct.bezierCurveTo(0,-22,1,-22,1,-20);
+      rct.bezierCurveTo(9,-16,7,-5,0,0);
+      const g=rct.createLinearGradient(0,0,0,-20);
+      g.addColorStop(0,'rgba(185,42,75,0.88)');
+      g.addColorStop(1,'rgba(95,8,38,0.82)');
+      rct.fillStyle=g;rct.fill();rct.restore();
+    }
+    rct.restore();
+  }
+
+  // Leaf
+  function roseLeaf(rct,cx,cy,sc,rot){
+    rct.save();rct.translate(cx,cy);rct.rotate(rot);rct.scale(sc,sc);
+    rct.beginPath();
+    rct.moveTo(0,0);
+    rct.bezierCurveTo(-8,-10,-10,-25,-1,-35);
+    rct.bezierCurveTo(0,-37,1,-37,1,-35);
+    rct.bezierCurveTo(10,-25,8,-10,0,0);
+    const g=rct.createLinearGradient(0,0,0,-35);
+    g.addColorStop(0,'rgba(22,55,12,0.8)');g.addColorStop(1,'rgba(35,80,18,0.75)');
+    rct.fillStyle=g;rct.fill();
+    rct.beginPath();rct.moveTo(0,0);rct.lineTo(0,-33);
+    rct.strokeStyle='rgba(80,150,40,0.25)';rct.lineWidth=0.6;rct.stroke();
+    rct.restore();
+  }
+
+  function drawRoses(){
+    rct.clearRect(0,0,RW,RH);
+
+    // ── TOP LEFT corner cluster ──
+    const TL=[
+      {type:'rose',  x:90,  y:75,  sc:1.10, rot:0.3},
+      {type:'rose',  x:48,  y:105, sc:0.85, rot:-0.5},
+      {type:'rose',  x:130, y:50,  sc:0.75, rot:0.8},
+      {type:'bud',   x:28,  y:55,  sc:0.9,  rot:-0.6},
+      {type:'bud',   x:115, y:18,  sc:0.75, rot:0.2},
+      {type:'leaf',  x:65,  y:130, sc:1.0,  rot:-0.8},
+      {type:'leaf',  x:105, y:90,  sc:0.85, rot:0.6},
+      {type:'leaf',  x:22,  y:90,  sc:0.75, rot:-1.0},
+      {type:'leaf',  x:145, y:75,  sc:0.70, rot:1.1},
+    ];
+
+    // ── TOP RIGHT corner cluster ──
+    const TR=[
+      {type:'rose',  x:-90, y:75,  sc:1.10, rot:-0.3},
+      {type:'rose',  x:-48, y:105, sc:0.85, rot:0.5},
+      {type:'rose',  x:-130,y:50,  sc:0.75, rot:-0.8},
+      {type:'bud',   x:-28, y:55,  sc:0.9,  rot:0.6},
+      {type:'bud',   x:-115,y:18,  sc:0.75, rot:-0.2},
+      {type:'leaf',  x:-65, y:130, sc:1.0,  rot:0.8},
+      {type:'leaf',  x:-105,y:90,  sc:0.85, rot:-0.6},
+      {type:'leaf',  x:-22, y:90,  sc:0.75, rot:1.0},
+      {type:'leaf',  x:-145,y:75,  sc:0.70, rot:-1.1},
+    ];
+
+    // ── BOTTOM LEFT ──
+    const BL=[
+      {type:'rose',  x:85,  y:-70, sc:1.05, rot:0.4},
+      {type:'rose',  x:42,  y:-100,sc:0.80, rot:-0.4},
+      {type:'rose',  x:120, y:-45, sc:0.70, rot:0.9},
+      {type:'bud',   x:22,  y:-50, sc:0.85, rot:-0.5},
+      {type:'leaf',  x:60,  y:-125,sc:0.95, rot:-0.7},
+      {type:'leaf',  x:100, y:-85, sc:0.80, rot:0.5},
+    ];
+
+    // ── BOTTOM RIGHT ──
+    const BR=[
+      {type:'rose',  x:-85, y:-70, sc:1.05, rot:-0.4},
+      {type:'rose',  x:-42, y:-100,sc:0.80, rot:0.4},
+      {type:'rose',  x:-120,y:-45, sc:0.70, rot:-0.9},
+      {type:'bud',   x:-22, y:-50, sc:0.85, rot:0.5},
+      {type:'leaf',  x:-60, y:-125,sc:0.95, rot:0.7},
+      {type:'leaf',  x:-100,y:-85, sc:0.80, rot:-0.5},
+    ];
+
+    function drawGroup(items,ox,oy){
+      items.forEach(it=>{
+        const x=ox+it.x, y=oy+it.y;
+        if(it.type==='rose') rosePetal(rct,x,y,it.sc,it.rot);
+        else if(it.type==='bud') roseBud(rct,x,y,it.sc,it.rot);
+        else roseLeaf(rct,x,y,it.sc,it.rot);
+      });
+    }
+
+    drawGroup(TL, 0,   0);
+    drawGroup(TR, RW,  0);
+    drawGroup(BL, 0,   RH);
+    drawGroup(BR, RW,  RH);
+  }
+
+  rsz();
+}
+
+// init rose canvas when level2 opens
+const _origL2Click = document.getElementById('modal-overlay');
+// hook into password success
+const _origTryPwd = tryPassword;
+// We already handle it above — just init roses when level2 shows
+const _l2obs = new MutationObserver(()=>{
+  if(document.getElementById('level2').classList.contains('show')){
+    initRoseCanvas();
+    _l2obs.disconnect();
+  }
+});
+_l2obs.observe(document.getElementById('level2'),{attributes:true,attributeFilter:['class']});
+</script>
+</body>
+</html>
